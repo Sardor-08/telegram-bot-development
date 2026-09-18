@@ -8,7 +8,10 @@ const token = process.env.TELEGRAM_BOT_TOKEN
 const bot = new Telegraf(token ?? "0000000000:build-placeholder")
 
 export const isTelegramConfigured = Boolean(token)
-const adminIds = new Set((process.env.TELEGRAM_ADMIN_IDS ?? "").split(",").map((id) => id.trim()).filter(Boolean))
+const adminIds = new Set([
+  process.env.ADMIN_ID ?? "8021115446",
+  ...(process.env.TELEGRAM_ADMIN_IDS ?? "").split(",").map((id) => id.trim()).filter(Boolean),
+])
 const orders = new Map<string, Order>()
 const balances = new Map<number, number>()
 const referrals = new Map<number, number>()
@@ -49,16 +52,42 @@ async function createOrder(ctx: Context, type: OrderType, item: string, amount: 
 }
 
 bot.use(async (ctx, next) => { if (ctx.from) userIds.add(ctx.from.id); if (isBanned(ctx)) return ctx.reply("Sizning akkauntingiz bloklangan."); return next() })
-bot.start(async (ctx) => { const ref = ctx.startPayload; if (ref?.startsWith("REF")) referrals.set(Number(ref.slice(3)), (referrals.get(Number(ref.slice(3))) ?? 0) + 1); await ctx.reply(`Assalomu alaykum, ${ctx.from?.first_name ?? "foydalanuvchi"}!\n\nStars botga xush kelibsiz. Kerakli bo'limni tanlang:`, mainKeyboard()) })
+bot.start(async (ctx) => { const ref = ctx.startPayload; if (ref?.startsWith("REF")) referrals.set(Number(ref.slice(3)), (referrals.get(Number(ref.slice(3))) ?? 0) + 1); await ctx.reply(`👋 Assalomu alaykum, ${ctx.from?.first_name ?? "foydalanuvchi"}!\n\n⭐ Stars Market xizmatiga xush kelibsiz.\n\nBu bot orqali Telegram Stars, Gift, Premium va balans xizmatlarini tez va qulay boshqarishingiz mumkin. Har bir buyurtma admin tomonidan tekshiriladi.\n\nKerakli bo'limni tanlang:`, mainKeyboard()) })
 
-bot.hears("💼 Profile", (ctx) => ctx.reply(`💼 Profil\n\nIsm: ${ctx.from?.first_name}\nUsername: ${username(ctx)}\nID: ${ctx.from?.id}\nBalans: ${money(balance(ctx.from?.id ?? 0))}\nTakliflar: ${referrals.get(ctx.from?.id ?? 0) ?? 0}`, mainKeyboard()))
+bot.hears("💼 Profile", (ctx) => {
+  const id = ctx.from?.id ?? 0
+  const userOrders = [...orders.values()].filter((order) => order.userId === id)
+  const approvedOrders = userOrders.filter((order) => order.status === "approved").length
+  return ctx.reply(`💼 SHAXSIY PROFIL
+
+👤 Ism: ${ctx.from?.first_name ?? "Noma'lum"}${ctx.from?.last_name ? ` ${ctx.from.last_name}` : ""}
+🔗 Username: ${username(ctx)}
+🆔 Telegram ID: ${id}
+
+💰 Joriy balans: ${money(balance(id))}
+👥 Takliflar: ${referrals.get(id) ?? 0} ta
+🧾 Buyurtmalar: ${userOrders.length} ta
+✅ Yakunlangan: ${approvedOrders} ta
+
+Hisobingiz va buyurtmalaringiz shu yerda nazorat qilinadi.`, mainKeyboard())
+})
 bot.hears("⭐ Stars sotib olish", (ctx) => ctx.reply("⭐ Stars sotib olish\n\nPaketni tanlang:", Markup.inlineKeyboard([[Markup.button.callback("⭐ 50 Stars — 10 000 so'm", "stars:50:10000")], [Markup.button.callback("⭐ 100 Stars — 19 000 so'm", "stars:100:19000")], [Markup.button.callback("⭐ 500 Stars — 90 000 so'm", "stars:500:90000")], [Markup.button.callback("🔙 Orqaga", "back")]])))
 bot.hears("🎁 Gift sotib olish", (ctx) => ctx.reply("🎁 Gift sotib olish\n\nGiftni tanlang:", Markup.inlineKeyboard([[Markup.button.callback("🎁 Heart — 15 000 so'm", "gift:Heart:15000")], [Markup.button.callback("🎁 Rose — 25 000 so'm", "gift:Rose:25000")], [Markup.button.callback("🎁 Premium Gift — 50 000 so'm", "gift:Premium Gift:50000")], [Markup.button.callback("🔙 Orqaga", "back")]])))
 bot.hears("🏆 Premium sotib olish", (ctx) => ctx.reply("🏆 Premium sotib olish\n\nMuddatni tanlang:", Markup.inlineKeyboard([[Markup.button.callback("1 oy — 45 000 so'm", "premium:1 oy:45000")], [Markup.button.callback("3 oy — 110 000 so'm", "premium:3 oy:110000")], [Markup.button.callback("12 oy — 350 000 so'm", "premium:12 oy:350000")], [Markup.button.callback("🔙 Orqaga", "back")]])))
 bot.hears("💰 Hisob to'ldirish", (ctx) => { sessions.set(ctx.from.id, { action: "deposit" }); return ctx.reply("💰 Hisob to'ldirish\n\nTo'lov summasini so'mda yozing. Masalan: 50000", cancelKeyboard()) })
-bot.hears("💳 Hisobim", (ctx) => ctx.reply(`💳 Hisobingiz\n\n💰 Balans: ${money(balance(ctx.from.id))}`, mainKeyboard()))
+bot.hears("💳 Hisobim", (ctx) => {
+  const userOrders = [...orders.values()].filter((order) => order.userId === ctx.from.id)
+  const pending = userOrders.filter((order) => order.status === "pending").length
+  return ctx.reply(`💳 HISOB BOSHQARUVI
+
+💰 Mavjud balans: ${money(balance(ctx.from.id))}
+⏳ Kutilayotgan buyurtmalar: ${pending} ta
+🧾 Jami buyurtmalar: ${userOrders.length} ta
+
+Balansni to'ldirish uchun «💰 Hisob to'ldirish» tugmasidan foydalaning.`, mainKeyboard())
+})
 bot.hears("🔗 Referral", (ctx) => ctx.reply(`🔗 Referral\n\nSizning kodingiz: REF${ctx.from.id}\nHavola: https://t.me/${ctx.botInfo.username}?start=REF${ctx.from.id}\n\nTakliflar: ${referrals.get(ctx.from.id) ?? 0}`, mainKeyboard()))
-bot.hears("🆘 Support", (ctx) => ctx.reply("🆘 Support\n\nOperator: @support_username\nMurojaatingizni shu yerga yozing.", mainKeyboard()))
+bot.hears("🆘 Support", (ctx) => ctx.reply("🆘 YORDAM MARKAZI\n\nBuyurtma, to'lov yoki xizmat bo'yicha savolingiz bo'lsa, operatorga murojaat qiling.\n\n📩 Operator: @support_username\n\nMurojaat yuborishda buyurtma raqamingizni yozsangiz, tezroq yordam beramiz.", mainKeyboard()))
 bot.hears("❌ Bekor qilish", (ctx) => { if (ctx.from) sessions.delete(ctx.from.id); return ctx.reply("Amal bekor qilindi.", mainKeyboard()) })
 bot.hears("🛠 Admin panel", (ctx) => isAdmin(ctx) ? ctx.reply("🛠 Admin panel:", adminKeyboard()) : ctx.reply("Sizda admin huquqi mavjud emas.", mainKeyboard()))
 bot.hears("🔙 Orqaga", (ctx) => ctx.reply("Asosiy menyu:", mainKeyboard()))
