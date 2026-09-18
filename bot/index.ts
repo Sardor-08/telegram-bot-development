@@ -5,8 +5,9 @@ type OrderType = "stars" | "premium" | "gift" | "deposit"
 type Order = { id: string; userId: number; username: string; type: OrderType; item: string; amount: number; createdAt: Date; status: "pending" | "approved" | "cancelled" }
 
 const token = process.env.TELEGRAM_BOT_TOKEN
-if (!token) throw new Error("TELEGRAM_BOT_TOKEN muhit o'zgaruvchisi topilmadi")
-const bot = new Telegraf(token)
+const bot = new Telegraf(token ?? "0000000000:build-placeholder")
+
+export const isTelegramConfigured = Boolean(token)
 const adminIds = new Set((process.env.TELEGRAM_ADMIN_IDS ?? "").split(",").map((id) => id.trim()).filter(Boolean))
 const orders = new Map<string, Order>()
 const balances = new Map<number, number>()
