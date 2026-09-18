@@ -1,7 +1,16 @@
-export default async function Page() {
-  if (process.env.TELEGRAM_BOT_TOKEN) {
-    fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? "https://telegram-bot-development-mu.vercel.app"}/api/telegram/setup`, { cache: "no-store" }).catch(() => undefined)
-  }
+"use client"
+
+import { useEffect, useRef } from "react"
+
+export default function Page() {
+  const setupStarted = useRef(false)
+
+  useEffect(() => {
+    if (setupStarted.current) return
+    setupStarted.current = true
+
+    fetch("/api/telegram/setup", { cache: "no-store" }).catch(() => undefined)
+  }, [])
 
   return (
     <main
